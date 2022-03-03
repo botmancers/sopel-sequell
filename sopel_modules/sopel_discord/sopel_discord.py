@@ -12,6 +12,7 @@ import threading
 import re
 
 from sopel import module
+from sopel import formatting
 from sopel.config.types import (
     StaticSection, ValidatedAttribute, BaseValidated, NO_DEFAULT
 )
@@ -65,7 +66,8 @@ async def on_message(message):
                 )
                 client.irc_bot.action(irc_message, irc_channel)
             else:
-                irc_message = '<{}> {}'.format(message.author.name, content)
+                name_fmt = formatting.color(formatting.bold(message.author.name), formatting.colors.LIGHT_CYAN)
+                irc_message = '<{}> {}'.format(name_fmt, content)
                 client.irc_bot.say(irc_message, irc_channel)
 
 
