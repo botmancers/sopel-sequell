@@ -26,13 +26,13 @@ with open('dev-requirements.txt') as dev_requirements_file:
 
 
 setup(
-    name='sopel_modules.sopel_discord',
+    name='sopel_modules.sopel_sequell',
     version='0.1.0',
-    description='Sopel module for connecting Discord and IRC channels',
+    description='Sopel module for relaying certain queries to and from Sequell',
     long_description=readme + '\n\n' + history,
-    author='Peter Rowlands',
-    author_email='peter@pmrowla.com',
-    url='http://github.com/pmrowla/sopel-discord',
+    author='Joanna Irina Zaitseva-Kinneberg',
+    author_email='sopel-sequell@nethackscoreboard.org',
+    url='http://github.com/botmancers/sopel-sequell',
     packages=find_packages('.'),
     namespace_packages=['sopel_modules'],
     include_package_data=True,

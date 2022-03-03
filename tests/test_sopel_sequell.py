@@ -4,7 +4,7 @@ from __future__ import unicode_literals, absolute_import, division, print_functi
 
 import unittest
 
-from sopel_modules.sopel_discord import sopel_discord
+from sopel_modules.sopel_sequell import sopel_sequell
 
 class TestSopel_discord(unittest.TestCase):
     def setUp(self):
