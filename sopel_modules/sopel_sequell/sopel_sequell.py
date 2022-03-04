@@ -3,7 +3,7 @@
 import re
 from sopel import plugin
 from sopel.config.types import (
-    StaticSection, ValidatedAttribute
+    StaticSection, ValidatedAttribute, ListAttribute
 )
 from sopel.tools import get_logger
 
@@ -18,7 +18,7 @@ LOGGER = get_logger(__name__)
 
 class SequellSection(StaticSection):
     nick = ValidatedAttribute('nick')
-    chan = ValidatedAttribute('chan')
+    chans = ListAttribute('chans')
 
 
 def configure(config):
@@ -28,14 +28,16 @@ def configure(config):
         'Nick for Sequell the actual bot',
     )
     config.sequell.configure_setting(
-        'chan',
-        'Channel for botspam (sequell replies)',
+        'chans',
+        'Channels with allowed botspam',
     )
 
 
 def setup(bot):
     bot.config.define_section('sequell', SequellSection)
-    bot.memory['sequell'] = {}
+    bot.config.sequell.chans = [item for a in bot.config.sequell.chans for item in a.split(",")]
+    LOGGER.debug(f"Sequel relay configured for channels: {bot.config.sequell.chans}")
+    bot.memory['sequell_sender'] = bot.config.sequell.chans[0]
 
 
 def parse(cmd):
@@ -53,26 +55,20 @@ $""", re.X).match(cmd)
     return match.group(1), match.group(2), match.group(3)
 
 
-def relay_cmd(bot, cmd_full, sender, pm, recv_bot):
+def relay_cmd(bot, cmd_full, nick, recv_bot):
     prefix, cmd, params = parse(cmd_full)
-
-    bot.memory['sequell'] = {
-        'from': sender,
-        'pm': pm,
-    }
-
     if prefix not in ("??", "??@") and cmd in ADD_NICK_CMDS and params is None:
-        cmd_full += f" {sender}"
+        cmd_full += f" {nick}"
     bot.say(cmd_full, recv_bot)
 
 
 def sequell(bot, trigger, cmd):
-    if trigger.sender.is_nick() or trigger.sender == bot.config.sequell.chan:
+    if trigger.sender.is_nick() or trigger.sender in bot.config.sequell.chans:
+        bot.memory['sequell_sender'] = trigger.sender
         relay_cmd(
             bot,
             cmd,
             trigger.nick,
-            trigger.is_privmsg,
             bot.config.sequell.nick
         )
 
@@ -95,8 +91,4 @@ def sequell_rule(bot, trigger):
 @plugin.rule(r'.*')
 def sequell_reply(bot, trigger):
     if trigger.nick == bot.config.sequell.nick:
-        last_cmd = bot.memory['sequell']
-        send_to = bot.config.sequell.chan
-        if last_cmd['pm']:
-            send_to = last_cmd['from']
-        bot.say(trigger.match.string, send_to)
+        bot.say(trigger.match.string, bot.memory['sequell_sender'])
