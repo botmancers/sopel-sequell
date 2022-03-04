@@ -17,18 +17,18 @@ LOGGER = get_logger(__name__)
 
 
 class SequellSection(StaticSection):
-    sq_nick = ValidatedAttribute('sq_nick')
-    to_chan = ValidatedAttribute('to_chan')
+    nick = ValidatedAttribute('nick')
+    chan = ValidatedAttribute('chan')
 
 
 def configure(config):
     config.define_section('sequell', SequellSection)
     config.sequell.configure_setting(
-        'sq_nick',
+        'nick',
         'Nick for Sequell the actual bot',
     )
     config.sequell.configure_setting(
-        'to_chan',
+        'chan',
         'Channel for botspam (sequell replies)',
     )
 
@@ -40,15 +40,16 @@ def setup(bot):
 
 def parse(cmd):
     match = re.compile(r"""^
-    ([!\?&][\?@]*)     # sequell prefix
-    (\w+)              # sequell cmd
-    (?:\[.*\])         # optional with ?? cmds
+    ([!?&][?@]*)    # sequell prefix
+    (\w+)           # sequell cmd
+    (?:\[.*\])?     # optional with ?? cmds
     (?:\s+
-      ([^\s]+)         # trailing params
+      ([^\s]+)      # trailing params
     )*
 $""", re.X).match(cmd)
     if match is None:
         return None, None, None
+    LOGGER.debug(f"{match.group(1)}, {match.group(2)}, {match.group(3)}")
     return match.group(1), match.group(2), match.group(3)
 
 
@@ -66,13 +67,14 @@ def relay_cmd(bot, cmd_full, sender, pm, recv_bot):
 
 
 def sequell(bot, trigger, cmd):
-    relay_cmd(
-        bot,
-        cmd,
-        trigger.nick,
-        trigger.is_privmsg,
-        bot.config.sequell.sq_nick
-    )
+    if trigger.sender.is_nick() or trigger.sender == bot.config.sequell.chan:
+        relay_cmd(
+            bot,
+            cmd,
+            trigger.nick,
+            trigger.is_privmsg,
+            bot.config.sequell.nick
+        )
 
 
 @plugin.command(PLUGIN_CMD)
@@ -92,9 +94,9 @@ def sequell_rule(bot, trigger):
 @plugin.require_privmsg
 @plugin.rule(r'.*')
 def sequell_reply(bot, trigger):
-    if trigger.nick == bot.config.sequell.sq_nick:
+    if trigger.nick == bot.config.sequell.nick:
         last_cmd = bot.memory['sequell']
-        send_to = bot.config.sequell.to_chan
+        send_to = bot.config.sequell.chan
         if last_cmd['pm']:
             send_to = last_cmd['from']
         bot.say(trigger.match.string, send_to)
