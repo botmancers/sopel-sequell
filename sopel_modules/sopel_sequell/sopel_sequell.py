@@ -59,18 +59,17 @@ $""", re.X)
     match = pattern.match(trigger.match.group(2))
     if match is None:
         return
+    cmd = match.group(2)
+    params = match.group(3)
     bot.memory['sequell'].append({
         'from': trigger.nick,
-        'pm': trigger.is_privmsg,
-        'prefix': match.group(1),
-        'cmd': match.group(2),
-        'params': match.group(3),
+        'pm': trigger.is_privmsg
     })
-    logger.debug(f"cmd matched: {match.group(1)}, {match.group(2)}, {match.group(3)}")
-    msg_to_sequell = f"{match.group(0)}"
-    if match.group(3) is None:
-        msg_to_sequell += f" {trigger.nick}"
-    bot.say(msg_to_sequell, bot.config.sequell.sq_nick)
+    logger.debug(f"cmd matched: {match.group(1)}, {cmd}, {params}")
+    msg = f"{match.group(0)}"
+    if cmd in nick_sub_cmd_list and params is None:
+        msg += f" {trigger.nick}"
+    bot.say(msg, bot.config.sequell.sq_nick)
 
 
 @plugin.require_privmsg
