@@ -7,26 +7,22 @@ from sopel.config.types import (
 )
 from sopel.tools import get_logger
 
-cmd = 'sq'
-nick_sub_cmd_list = [
+PLUGIN_CMD = 'sq'
+ADD_NICK_CMDS = [
     'dump',
     'lg',
     'gamesby',
 ]
-logger = get_logger(__name__)
+LOGGER = get_logger(__name__)
+
 
 class SequellSection(StaticSection):
-    cmd = ValidatedAttribute('cmd')
     sq_nick = ValidatedAttribute('sq_nick')
     to_chan = ValidatedAttribute('to_chan')
 
 
 def configure(config):
     config.define_section('sequell', SequellSection)
-    config.sequell.configure_setting(
-        'cmd',
-        'Name of Sequell relay command (default: sq)'
-    )
     config.sequell.configure_setting(
         'sq_nick',
         'Nick for Sequell the actual bot',
@@ -39,46 +35,66 @@ def configure(config):
 
 def setup(bot):
     bot.config.define_section('sequell', SequellSection)
-    if bot.config.sequell.cmd is not None:
-         cmd = bot.config.sequell.cmd
-    bot.memory['sequell'] = []
+    bot.memory['sequell'] = {}
 
 
-# Match all messages except for those which start with common bot command
-# prefixes
-@plugin.command(cmd)
-def sequell_cmd(bot, trigger):
-    pattern = re.compile(r"""^
-    ([&!\?]+)   # sequell prefix
-    (\w+)       # sequell cmd
+def parse(cmd):
+    match = re.compile(r"""^
+    ([!\?&][\?@]*)     # sequell prefix
+    (\w+)              # sequell cmd
+    (?:\[.*\])         # optional with ?? cmds
     (?:\s+
-      (\w+)     # trailing parameters
+      ([^\s]+)         # trailing params
     )*
-$""", re.X)
-    logger.debug(f"<{trigger.nick}> {trigger.match.string}")
-    match = pattern.match(trigger.match.group(2))
+$""", re.X).match(cmd)
     if match is None:
-        return
-    cmd = match.group(2)
-    params = match.group(3)
-    bot.memory['sequell'].append({
-        'from': trigger.nick,
-        'pm': trigger.is_privmsg
-    })
-    logger.debug(f"cmd matched: {match.group(1)}, {cmd}, {params}")
-    msg = f"{match.group(0)}"
-    if cmd in nick_sub_cmd_list and params is None:
-        msg += f" {trigger.nick}"
-    bot.say(msg, bot.config.sequell.sq_nick)
+        return None, None, None
+    return match.group(1), match.group(2), match.group(3)
+
+
+def relay_cmd(bot, cmd_full, sender, pm, recv_bot):
+    prefix, cmd, params = parse(cmd_full)
+
+    bot.memory['sequell'] = {
+        'from': sender,
+        'pm': pm,
+    }
+
+    if prefix not in ("??", "??@") and cmd in ADD_NICK_CMDS and params is None:
+        cmd_full += f" {sender}"
+    bot.say(cmd_full, recv_bot)
+
+
+def sequell(bot, trigger, cmd):
+    relay_cmd(
+        bot,
+        cmd,
+        trigger.nick,
+        trigger.is_privmsg,
+        bot.config.sequell.sq_nick
+    )
+
+
+@plugin.command(PLUGIN_CMD)
+def sequell_command(bot, trigger):
+    # matches g1 (.sq) g2 (the rest), trim our plugin_cmd
+    LOGGER.debug(f"<{trigger.nick}> (CMD) {trigger.match.string}")
+    sequell(bot, trigger, trigger.match.group(2))
+
+
+@plugin.rule(r'^[!\?&][@\?]*')
+def sequell_rule(bot, trigger):
+    # in this case we relay the whole thing
+    LOGGER.debug(f"<{trigger.nick}> (RULE) {trigger.match.string}")
+    sequell(bot, trigger, trigger.match.string)
 
 
 @plugin.require_privmsg
 @plugin.rule(r'.*')
 def sequell_reply(bot, trigger):
     if trigger.nick == bot.config.sequell.sq_nick:
-        logger.info(f"{trigger.nick} replied {trigger.match.string}")
-        last_cmd = bot.memory['sequell'].pop(-1)
+        last_cmd = bot.memory['sequell']
+        send_to = bot.config.sequell.to_chan
         if last_cmd['pm']:
-            bot.say(trigger.match.string, last_cmd['from'])
-        else:
-            bot.say(trigger.match.string, bot.config.sequell.to_chan)
+            send_to = last_cmd['from']
+        bot.say(trigger.match.string, send_to)
